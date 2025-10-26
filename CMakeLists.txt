@@ -39,3 +39,6 @@ include_directories(${Boost_INCLUDE_DIRS})
 target_link_libraries(${project_name} ${Boost_LIBRARIES})
 
 target_include_directories(${project_name} PRIVATE ${include_dirs})
+
+# Write output relative to source dir
+add_definitions(-DPROJECT_ROOT_DIR="${CMAKE_SOURCE_DIR}")

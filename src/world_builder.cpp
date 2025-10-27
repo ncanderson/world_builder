@@ -1,3 +1,7 @@
+/**
+ * Copyright (C) 2025 Nate Anderson - All Rights Reserved
+ */
+
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -9,24 +13,7 @@
 #include <unordered_map>
 #include <vector>
 
-struct Coord
-{
-  int q;
-  int r;
-  bool operator==(const Coord& other) const noexcept
-  {
-    return q == other.q && r == other.r;
-  }
-};
 
-// Custom hash for unordered_map, ensuring no duplicates
-struct CoordHash
-{
-  std::size_t operator()(const Coord& c) const noexcept
-  {
-    return (std::hash<int>()(c.q) << 1) ^ std::hash<int>()(c.r);
-  }
-};
 
 struct Tile
 {
@@ -476,33 +463,68 @@ int main()
 <meta charset="UTF-8">
 <title>World Preview</title>
 <style>
-  body { margin: 0; background: #111; display: flex; align-items: center; justify-content: center; height: 100vh; }
-  canvas { image-rendering: pixelated; border: 1px solid #444; }
-  #legend { position: fixed; top: 10px; left: 10px; font-family: monospace; color: #eee; background: rgba(0,0,0,0.5); padding: 6px 10px; border-radius: 6px; }
-  .swatch { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: middle; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #111;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  #container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+  canvas {
+    image-rendering: pixelated;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border: 1px solid #333;
+  }
+  #legend {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-family: monospace;
+    color: #eee;
+    background: rgba(0,0,0,0.5);
+    padding: 6px 10px;
+    border-radius: 6px;
+  }
+  .swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
 </style>
 </head>
 <body>
-<div id="legend">
-  <div><span class="swatch" style="background:#004;"></span>Ocean</div>
-  <div><span class="swatch" style="background:#66f;"></span>River</div>
-  <div><span class="swatch" style="background:#eeddaa;"></span>Beach</div>
-  <div><span class="swatch" style="background:#88aa55;"></span>Plains</div>
-  <div><span class="swatch" style="background:#557744;"></span>Hills</div>
-  <div><span class="swatch" style="background:#999999;"></span>Mountains</div>
+<div id="container">
+  <div id="legend">
+    <div><span class="swatch" style="background:#004;"></span>Ocean</div>
+    <div><span class="swatch" style="background:#66f;"></span>River</div>
+    <div><span class="swatch" style="background:#eeddaa;"></span>Beach</div>
+    <div><span class="swatch" style="background:#88aa55;"></span>Plains</div>
+    <div><span class="swatch" style="background:#557744;"></span>Hills</div>
+    <div><span class="swatch" style="background:#999999;"></span>Mountains</div>
+  </div>
+  <canvas id="map" width=)" << P.width << " height=" << P.height << R"(></canvas>
 </div>
-<canvas id="map" width=)" << P.width * scale << " height=" << P.height * scale << R"(></canvas>
 <script>
 const canvas = document.getElementById('map');
 const ctx = canvas.getContext('2d');
-const scale = )" << scale << R"(;
-const tilesWidth = )" << P.width << R"(;
-const tilesHeight = )" << P.height << R"(;
-
-// Load tile data
-const tiles = [
+const img = ctx.createImageData(canvas.width, canvas.height);
+const data = img.data;
 )";
 
+      // Write out tile array
+      html << "const tiles = [\n";
       for (int r = 0; r < P.height; ++r)
       {
         for (int q = 0; q < P.width; ++q)
@@ -512,32 +534,38 @@ const tiles = [
         }
         html << "\n";
       }
+      html << "];\n";
 
-      html << R"(];
-
-// Draw each tile as a colored rectangle
-for (let y = 0; y < tilesHeight; ++y) {
-  for (let x = 0; x < tilesWidth; ++x) {
-    const tile = tiles[y * tilesWidth + x];
-    let color;
+      html << R"(
+// Render map pixels
+for (let y = 0; y < canvas.height; ++y) {
+  for (let x = 0; x < canvas.width; ++x) {
+    const i = y * canvas.width + x;
+    const tile = tiles[i];
+    let r,g,b;
     switch(tile.t) {
-      case 'ocean': color = `rgb(0,0,${100 + tile.e*100})`; break;
-      case 'river': color = 'rgb(80,120,255)'; break;
-      case 'beach': color = 'rgb(238,214,175)'; break;
-      case 'marsh': color = 'rgb(110,150,90)'; break;
-      case 'plains': color = 'rgb(136,170,85)'; break;
-      case 'hills': color = 'rgb(85,119,68)'; break;
-      case 'mountain': color = `rgb(${150+tile.e*100},${150+tile.e*100},${150+tile.e*100})`; break;
-      default: color = 'rgb(50,50,50)';
+      case 'ocean':     r=0; g=0; b=100 + tile.e*100; break;
+      case 'river':     r=80; g=120; b=255; break;
+      case 'beach':     r=238; g=214; b=175; break;
+      case 'marsh':     r=110; g=150; b=90; break;
+      case 'plains':    r=136; g=170; b=85; break;
+      case 'hills':     r=85; g=119; b=68; break;
+      case 'mountain':  r=150 + tile.e*100; g=150 + tile.e*100; b=150 + tile.e*100; break;
+      default:          r=g=b=50;
     }
-    ctx.fillStyle = color;
-    ctx.fillRect(x*scale, (tilesHeight-1-y)*scale, scale, scale);
+    const j = ((canvas.height - 1 - y) * canvas.width + x) * 4; // flip vertically
+    data[j] = r;
+    data[j+1] = g;
+    data[j+2] = b;
+    data[j+3] = 255;
   }
 }
+ctx.putImageData(img, 0, 0);
 </script>
 </body>
 </html>
 )";
+
       html.close();
       std::cout << "HTML world map written to index.html (open in browser)\n";
     }

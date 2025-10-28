@@ -3,16 +3,12 @@
  */
 
 // Standard libs
-#include <iostream>
+
+// JSON
 
 // Application files
-#include <utils/world_builder_utils.h>
+#include <geo_models/terrain.h>
 
 ///////////////////////////////////////////////////////////////////////
-
-void world_builder::Print_key_value_string(std::string key_name, std::string value)
-{
-  std::cout << "Log Message: " << key_name << ": " << value << std::endl;
-}
 
 ///////////////////////////////////////////////////////////////////////

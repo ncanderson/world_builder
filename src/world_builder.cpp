@@ -4,59 +4,53 @@
 
 
 // Standard libs
-#include <algorithm>
 #include <boost/program_options.hpp>
 #include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <random>
-#include <stdexcept>
 #include <string>
 #include <unordered_map>
 
 // JSON
 
 // Application files
-#include <utils/world_builder_utils.h>
-#include <utils/params.h>
-#include <geo_models/coord.h>
+#include <defs/dice_rolls.h>
 #include <geo_models/continent.h>
+#include <geo_models/coord.h>
 #include <geo_models/tile.h>
-
-///////////////////////////////////////////////////////////////////////
-// Global Variables
-///////////////////////////////////////////////////////////////////////
-
-// NOOP
-
-///////////////////////////////////////////////////////////////////////
-// Function Declarations
-///////////////////////////////////////////////////////////////////////
-
-// NOOP
+#include <geo_models/world.h>
+#include <utils/html_writer.h>
+#include <utils/params.h>
+#include <utils/world_builder_utils.h>
 
 ///////////////////////////////////////////////////////////////////////
 
-
-// Simple RNG
-struct RNG
+void Print_output_summary(const world_builder::World& world,
+                          const world_builder::Params& params)
 {
-  std::mt19937 gen;
-  RNG(unsigned seed) : gen(seed) {}
+  std::cout << "World generated (" << params.Get_width() << "x" << params.Get_height()
+            << "), rivers: " << world.Get_rivers().size() << "\n";
 
-  double uniform(double a=0.0, double b=1.0)
+  // Counts of terrain types
+  std::unordered_map<std::string_view, int> counts;
+
+  std::string_view terrain_string;
+
+  for(auto& [c, t] : world.Get_world_tiles())
   {
-    std::uniform_real_distribution<double> dist(a, b);
-    return dist(gen);
+    terrain_string = world_builder::Enum_to_string<world_builder::ETerrain>(t.Get_terrain(),
+                                                                            world_builder::TERRAIN_LOOKUP);
+    counts[terrain_string]++;
   }
 
-  int randint(int a, int b)
+  for(auto& [name, n] : counts)
   {
-    std::uniform_int_distribution<int> dist(a, b);
-    return dist(gen);
+    std::cout << "  " << name << ": " << n << "\n";
   }
-};
+}
+
+///////////////////////////////////////////////////////////////////////
 
 int main(int argc, char *argv[])
 {
@@ -68,8 +62,7 @@ int main(int argc, char *argv[])
   // Set up Runtime Objects
 
   world_builder::Params params;
-  RNG rng(params.Get_seed());
-  std::unordered_map<world_builder::Coord, world_builder::Tile, world_builder::Coord_hash> tiles;
+  world_builder::HTML_writer writer(std::filesystem::path(PROJECT_ROOT_DIR) / "output");
 
   //////////////////////////////////////////////////////
   // Set up the program options
@@ -79,7 +72,9 @@ int main(int argc, char *argv[])
   po::options_description desc("Application options");
   desc.add_options()
       ("help", "Produce help message")
-      ("app_cfg", po::value(&app_cfg_path)->default_value(app_cfg_path), "Main application config file");
+      ("app_cfg",
+       po::value(&app_cfg_path)->default_value(app_cfg_path),
+       "Main application config file");
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -115,415 +110,46 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  // Using the params, build a grid of Coord objects, which are then used to
-  // build a Tile. These tiles represent the individual unit that builds the
-  // whole map.
-  for (int q = 0; q < params.Get_width(); ++q)
-  {
-    for (int r = 0; r < params.Get_height(); ++r)
-    {
-      world_builder::Coord new_coord = world_builder::Coord(q, r);
-      tiles.try_emplace(new_coord, world_builder::Tile(new_coord));
-    }
-  }
+  //////////////////////////////////////////////////////
+  // Set up the world, now that params are loaded
 
-  // ----------------------
-  // Continent-based seeding
-  // ----------------------
+  world_builder::World world = world_builder::World(params);
 
-  // Define 2–4 continents depending on map size
-  int numContinents = std::max(static_cast<uint32_t>(2),
-                               params.Get_width() / 40);
-  std::vector<world_builder::Continent> continents;
-  for (int i = 0; i < numContinents; ++i)
-  {
-    continents.push_back({
-      rng.randint(params.Get_width() / 8, params.Get_width() * 7 / 8),    // centerQ
-      rng.randint(params.Get_height() / 8, params.Get_height() * 7 / 8),  // centerR
-      rng.uniform(params.Get_width() / 6.0, params.Get_width() / 4.0)     // radius
-    });
-  }
+  //////////////////////////////////////////////////////
+  // Build the world!
 
-  // Place elevation seeds around each continent center
-  int seedsPerContinent = std::max(static_cast<uint32_t>(3),
-                                   (params.Get_width() * params.Get_height()) / (200 * numContinents));
-  for (auto& c : continents)
-  {
-    for (int i = 0; i < seedsPerContinent; ++i)
-    {
-      double angle = rng.uniform(0, 2 * M_PI);
-      double dist = rng.uniform(0, c.Get_radius());
-      int q_coord = c.Get_center_q() + static_cast<int>(dist * cos(angle));
-      int r_coord = c.Get_center_r() + static_cast<int>(dist * sin(angle));
+  // Once the generation algorithm is dialed in a bit more, we won't need all
+  // these calls to Paint_terrain(); they are there to support the review of
+  // the process
+  world.Seed_continents();
+  world.Paint_terrain();
+  writer.Write(world.Get_world_tiles(), params, "1_continents.html");
+  world.Seed_oceans();
+  world.Paint_terrain();
+  writer.Write(world.Get_world_tiles(), params, "2_oceans.html");
+  world.Run_diffusion();
+  world.Paint_terrain();
+  writer.Write(world.Get_world_tiles(), params, "3_tiles_diffused.html");
+  world.Normalize_elevation();
+  world.Paint_terrain();
+  writer.Write(world.Get_world_tiles(), params, "4_height_normalized.html");
+  world.Run_oceans_and_coasts();
+  world.Paint_terrain();
+  writer.Write(world.Get_world_tiles(), params, "5_specify_coasts.html");
+  world.Run_rivers();
+  world.Paint_terrain();
+  writer.Write(world.Get_world_tiles(), params, "6_run_rivers.html");
 
-      if(q_coord >= 0 && q_coord < params.Get_width() && r_coord >= 0 && r_coord < params.Get_height())
-      {
-        // Skewed toward land
-        world_builder::Coord coord = world_builder::Coord(q_coord, r_coord);
-        auto it = tiles.find(coord);
-        if (it != tiles.end())
-        {
-          it->second.Set_elevation(rng.uniform(0.4, 1.0));
-        }
-      }
-    }
-  }
 
-  // Only add ocean seeds outside continents
-  int oceanSeeds = seedsPerContinent; // same count as land seeds
-  for (int i = 0; i < oceanSeeds; ++i)
-  {
-    int q = rng.randint(0, params.Get_width() - 1);
-    int r = rng.randint(0, params.Get_height() - 1);
+  //////////////////////////////////////////////////////
+  // Output summary
 
-    // skip tiles that are close to a continent center
-    bool nearContinent = false;
-    for (auto& c : continents)
-    {
-      double dq = q - c.Get_center_q();
-      double dr = r - c.Get_center_r();
-      double dist = std::sqrt(dq*dq + dr*dr);
-      if (dist < c.Get_radius() * 0.8)
-      {
-        nearContinent = true;
-        break;
-      }
-    }
+  Print_output_summary(world, params);
 
-    if(!nearContinent)
-    {
-      // Skewed toward land
-      world_builder::Coord coord = world_builder::Coord(q, r);
-      auto it = tiles.find(coord);
-      if (it != tiles.end())
-      {
-        it->second.Set_elevation(rng.uniform(-0.5, 0.2));
-      }
-    }
-  }
+  //////////////////////////////////////////////////////
+  // Write final world out to HTML
 
-  // Diffusion / smoothing. For every smoothing pass, this will set the elevation for each
-  // to based on the average of all neighbors with some random noise injected.
-  for (int pass = 0; pass < params.Get_smooth_passes(); ++pass)
-  {
-    // Temp map to hold all coordinates, allowing update of the main map after
-    // doing the smoothing passes
-    std::unordered_map<world_builder::Coord,
-                       double,
-                       world_builder::Coord_hash> new_elev;
-
-    // ie for every tile...
-    for (auto& [coord, tile] : tiles)
-    {
-      // get all neighbors for this tile
-      auto neighbors = tile.Get_neighbor_tiles(coord);
-
-      // Neighboring elevations
-      std::vector<double> neighbor_elevations;
-
-      // for all neighbors,
-      for (auto& nn : neighbors)
-      {
-        // Get the pointed to neighbor tile
-        auto it2 = tiles.find(nn);
-        if(it2 != tiles.end())
-        {
-          // If found, add the elevation
-          neighbor_elevations.push_back(it2->second.Get_elevation());
-        }
-      }
-
-      // Average all neighboring elevations
-      double nbr_mean = 0;
-
-      // If no neighbors, use this tile's own elevation
-      if(neighbor_elevations.empty())
-      {
-        nbr_mean = tile.Get_elevation();
-      }
-      // Otherwise, add up all neighboring elevations and divide by found neighbors
-      else
-      {
-        nbr_mean = std::accumulate(neighbor_elevations.begin(),
-                                   neighbor_elevations.end(), 0.0) / neighbor_elevations.size();
-      }
-
-      double blend = 0.6;
-
-      // (rng.uniform() - 0.5): Make the number in the range of -.5 to .5
-      // * params.randomness: Augment the random roll with the additional randomness factor
-      // (1.0 - (double)pass / params.smooth_passes): Dampens the noise gradually with each smoothing pass.
-      double noise = (rng.uniform() - 0.5) * params.Get_randomness() * (1.0 - (double)pass / params.Get_smooth_passes());
-
-      // New elevation is a weighted average between (old elevation) and (neighbor mean), plus some fading noise.
-      // If blend = 0.5 → half current height, half neighbors → moderate smoothing.
-      // If blend = 1.0 → completely replace with neighbor mean (max smoothing).
-      // If blend = 0.0 → do nothing (preserve current map).
-      new_elev[coord] = nbr_mean * blend + tile.Get_elevation() * (1 - blend) + noise;
-    }
-
-    // Reset the tiles to the new elevation
-    for (const auto& [coord, val] : new_elev)
-    {
-      auto it = tiles.find(coord);
-      if (it != tiles.end())
-      {
-        it->second.Set_elevation(val);
-      }
-    }
-  }
-
-  // Normalize elevation
-  double minE = 1e9;
-  double maxE = -1e9;
-
-  // For every tile, check for a new max or min elevation
-  for(auto& [c, t] : tiles)
-  {
-    minE = std::min(minE, t.Get_elevation());
-    maxE = std::max(maxE, t.Get_elevation());
-  }
-
-  // For every tile, re-scale the elevation to fit within a 0 - 1 range
-  for(auto& [c, t] : tiles)
-  {
-    t.Set_elevation((t.Get_elevation() - minE) / (maxE - minE));
-  }
-
-  // Terrain classification based on elevation
-  for(auto& [c, t] : tiles)
-  {
-    if(t.Get_elevation() <= params.Get_sea_level())
-    {
-      t.Set_terrain(world_builder::ETerrain::ETERRAIN_Ocean);
-    }
-  }
-
-  // Mark coasts
-  for(auto& [c, t] : tiles)
-  {
-    // Ignore oceans
-    if(t.Get_terrain() == world_builder::ETerrain::ETERRAIN_Ocean)
-    {
-      continue;
-    }
-
-    // For every tile, if it's not an ocean but a neighbor is an ocean, then
-    // this is a coast
-    for(auto& n : t.Get_neighbor_tiles(c))
-    {
-      auto it2 = tiles.find(n);
-      if(it2 != tiles.end() && it2->second.Get_terrain() == world_builder::ETerrain::ETERRAIN_Ocean)
-      {
-        t.Set_is_coast(true);
-        break;
-      }
-    }
-  }
-
-  // Rivers
-  std::vector<std::vector<world_builder::Coord>> rivers;
-  // for every tile,
-  for(auto& [c, t] : tiles)
-  {
-    // Check elevation. greater than sea level (plus a pad), and make a roll against probability
-    if(t.Get_elevation() > params.Get_sea_level() + 0.05 && rng.uniform() < params.Get_river_spawn_prob())
-    {
-      // Trace a river path,
-      auto path = t.Trace_river(c, tiles, params);
-      // if there are three or more tiles,
-      if (path.size() >= 3)
-      {
-        // for each tile in the river path,
-        for(size_t i = 0; i + 1 < path.size(); ++i)
-        {
-          auto it = tiles.find(path[i]);
-          if (it != tiles.end())
-          {
-            it->second.Set_is_river(true);
-            it->second.Set_river_to(path[i + 1]);
-          }
-        }
-
-        // handle the last tile
-        auto it_last = tiles.find(path.back());
-        if(it_last != tiles.end())
-        {
-          it_last->second.Set_is_river(true);
-        }
-
-        rivers.push_back(path);
-      }
-    }
-  }
-
-  // Terrain painting
-  for (auto& [c, t] : tiles)
-  {
-    if (t.Get_terrain() == world_builder::ETerrain::ETERRAIN_Ocean)
-    {
-      continue;
-    }
-
-    if(t.Get_is_river())
-    {
-      t.Set_terrain(world_builder::ETerrain::ETERRAIN_River);
-      continue;
-    }
-
-    if(t.Get_is_coast() && t.Get_elevation() <= params.Get_sea_level() + 0.03)
-    {
-      t.Set_terrain(world_builder::ETerrain::ETERRAIN_Beach);
-    }
-    else if(t.Get_elevation() < params.Get_sea_level() + 0.07)
-    {
-      t.Set_terrain(world_builder::ETerrain::ETERRAIN_Marsh);
-    }
-    else if(t.Get_elevation() < params.Get_sea_level() + 0.20)
-    {
-      t.Set_terrain(world_builder::ETerrain::ETERRAIN_Plains);
-    }
-    else if(t.Get_elevation() < params.Get_sea_level() + 0.45)
-    {
-      t.Set_terrain(world_builder::ETerrain::ETERRAIN_Hills);
-    }
-    else
-    {
-      if(t.Get_elevation() > 0.8)
-      {
-        t.Set_terrain(world_builder::ETerrain::ETERRAIN_Mountains);
-      }
-      else
-      {
-        t.Set_terrain(world_builder::ETerrain::ETERRAIN_Hills);
-      }
-    }
-  }
-
-  // Print summary
-  std::cout << "World generated (" << params.Get_width() << "x" << params.Get_height()
-            << "), rivers: " << rivers.size() << "\n";
-  std::unordered_map<std::string_view, int> counts;
-
-  std::string_view terrain_string;
-
-  for(auto& [c, t] : tiles)
-  {
-    terrain_string = world_builder::Enum_to_string<world_builder::ETerrain>(t.Get_terrain(),
-                                                                            world_builder::TERRAIN_LOOKUP);
-    counts[terrain_string]++;
-  }
-
-  for(auto& [name, n] : counts)
-  {
-    std::cout << "  " << name << ": " << n << "\n";
-  }
-
-// -------------------------------------------------------------
-// HTML VISUALIZATION OUTPUT
-// -------------------------------------------------------------
-  try
-  {
-    std::filesystem::path outputDir = std::filesystem::path(PROJECT_ROOT_DIR) / "output";
-    std::filesystem::create_directories(outputDir);
-    std::filesystem::path outputFile = outputDir / "index.html";
-    std::ofstream html(outputFile);
-    if (!html) throw std::runtime_error("Failed to open index.html for writing");
-
-    int tileWidth = params.Get_width();
-    int tileHeight = params.Get_height();
-
-    html << R"(<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>World Preview</title>
-<style>
-  html, body { margin:0; padding:0; background:#111; height:100%; width:100%; overflow:hidden; display:flex; justify-content:center; align-items:center; }
-  canvas { image-rendering: pixelated; display:block; border:1px solid #333; }
-  #legend { position:absolute; top:10px; left:10px; font-family:monospace; color:#eee; background: rgba(0,0,0,0.5); padding:6px 10px; border-radius:6px; }
-  .swatch { display:inline-block; width:12px; height:12px; margin-right:6px; vertical-align:middle; }
-</style>
-</head>
-<body>
-<div id="legend">
-  <div><span class="swatch" style="background:#004;"></span>Ocean</div>
-  <div><span class="swatch" style="background:#66f;"></span>River</div>
-  <div><span class="swatch" style="background:#eeddaa;"></span>Beach</div>
-  <div><span class="swatch" style="background:#88aa55;"></span>Plains</div>
-  <div><span class="swatch" style="background:#557744;"></span>Hills</div>
-  <div><span class="swatch" style="background:#999;"></span>Mountains</div>
-</div>
-<canvas id="map"></canvas>
-<script>
-window.onload = function() {
-    const canvas = document.getElementById('map');
-    const ctx = canvas.getContext('2d');
-
-    const tileWidth = )" << tileWidth << R"(;
-    const tileHeight = )" << tileHeight << R"(;
-
-    // Tile data
-    const tiles = [)";
-
-    for(int r=0; r<tileHeight; ++r){
-      for(int q=0; q<tileWidth; ++q){
-        const world_builder::Tile& t = tiles.at({q,r});
-        std::string terrain_string = std::string(
-            world_builder::Enum_to_string<world_builder::ETerrain>(t.Get_terrain(), world_builder::TERRAIN_LOOKUP)
-            );
-        html << "{e:" << t.Get_elevation() << ",t:'" << terrain_string << "'},";
-      }
-      html << "\n";
-    }
-    html << "];\n";
-
-    html << R"(
-
-    function drawTiles(scale) {
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-        for(let y=0; y<tileHeight; y++){
-            for(let x=0; x<tileWidth; x++){
-                const tile = tiles[y*tileWidth + x];
-                let color = '#333';
-                switch(tile.t){
-                    case 'Ocean': color='#004'; break;
-                    case 'River': color='#66f'; break;
-                    case 'Beach': color='#eeddaa'; break;
-                    case 'Plains': color='#88aa55'; break;
-                    case 'Hills': color='#557744'; break;
-                    case 'Mountain': color='#999'; break;
-                    default: color='#333'; break;
-                }
-                ctx.fillStyle = color;
-                ctx.fillRect(x*scale, y*scale, scale, scale);
-            }
-        }
-    }
-
-    function resizeCanvas() {
-        const scaleX = window.innerWidth / tileWidth;
-        const scaleY = window.innerHeight / tileHeight;
-        const scale = Math.floor(Math.min(scaleX, scaleY));
-        canvas.width = tileWidth * scale;
-        canvas.height = tileHeight * scale;
-        drawTiles(scale);
-    }
-
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas(); // initial draw
-};
-</script>
-</body>
-</html>
-)";
-
-    html.close();
-    std::cout << "HTML world map written to index.html\n";
-  }
-  catch (const std::exception& e) {
-    std::cerr << "Exception: " << e.what() << "\n";
-  }
+  writer.Write(world.Get_world_tiles(), params, "final_world.html");
 
   return 0;
 }

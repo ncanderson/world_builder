@@ -13,6 +13,7 @@
 // JSON
 
 // Application files
+#include <defs/world_builder_defs.h>
 #include <geo_models/coord.h>
 #include <geo_models/terrain.h>
 
@@ -23,6 +24,15 @@ namespace world_builder
  *  Forward declarations
  */
 class Params;
+class Tile;
+
+/**
+ * @brief World_tiles is the main container that will hold each tile. Keys are
+ * hashed via `Coord_hash` to determine uniqueness in the map.
+ */
+using World_tiles = std::unordered_map<world_builder::Coord,
+                                       world_builder::Tile,
+                                       world_builder::Coord_hash>;
 
 /**
  * @brief The Tile class
@@ -45,6 +55,11 @@ public:
    */
   Tile(const Tile& copy);
 
+  /**
+   * @brief Assignment operator
+   * @param other Other tile to assign
+   * @return
+   */
   Tile& operator=(const Tile& other)
   {
     if (this != &other)
@@ -74,7 +89,7 @@ public:
    * @return The lowest downhill neighboring tile
    */
   std::optional<world_builder::Coord> Downhill_neighbor(const world_builder::Coord& c,
-                                                        const std::unordered_map<world_builder::Coord, world_builder::Tile, world_builder::Coord_hash>& tiles);
+                                                        const world_builder::World_tiles& tiles);
 
   /**
    * @brief Trace_river
@@ -84,8 +99,20 @@ public:
    * @return
    */
   std::vector<Coord> Trace_river(const Coord& start,
-                                 std::unordered_map<Coord, Tile, Coord_hash>& tiles,
+                                 world_builder::World_tiles& tiles,
                                  const Params& P);
+
+  /**
+   * @brief Set ocean terrain for this tile, based on sea level
+   * @param sea_level The configured sea level
+   */
+  void Set_ocean_terrain(const double sea_level);
+
+  /**
+   * @brief Paint terrain based on sea level
+   * @param sea_level The configured sea level
+   */
+  void Paint_terrain(const double sea_level);
 
   /**
    * Getters and setters

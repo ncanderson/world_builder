@@ -7,7 +7,6 @@
 
 // Standard libs
 #include <cstdint>
-#include <string>
 #include <array>
 
 // JSON
@@ -50,21 +49,12 @@ constexpr std::array<Enum_mapping<ETerrain>,
 };
 
 /**
- * @brief The terrain class
+ * @brief Utilities for working with terrain
  */
-class Terrain
+namespace Terrain
 {
-public:
-  // Attributes
 
-  // Implementation
-
-private:
-  // Attributes
-
-  // Implementation
-
-};
-}
+}  // namespace world_builder
+}  // namespace Terrain
 
 #endif

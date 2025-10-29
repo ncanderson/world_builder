@@ -58,7 +58,7 @@ std::vector<world_builder::Coord> tile::Get_neighbor_tiles(const world_builder::
 ///////////////////////////////////////////////////////////////////////
 
 std::optional<world_builder::Coord> tile::Downhill_neighbor(const world_builder::Coord& c,
-                                                            const std::unordered_map<world_builder::Coord, world_builder::Tile, world_builder::Coord_hash>& tiles)
+                                                            const world_builder::World_tiles& tiles)
 {
   auto it = tiles.find(c);
   if(it == tiles.end())
@@ -97,7 +97,7 @@ std::optional<world_builder::Coord> tile::Downhill_neighbor(const world_builder:
 ///////////////////////////////////////////////////////////////////////
 
 std::vector<world_builder::Coord> tile::Trace_river(const Coord& start,
-                                                    std::unordered_map<Coord, Tile, Coord_hash>& tiles,
+                                                    world_builder::World_tiles& tiles,
                                                     const Params& params)
 {
   std::vector<Coord> path;
@@ -129,6 +129,59 @@ std::vector<world_builder::Coord> tile::Trace_river(const Coord& start,
     cur = *dn;
   }
   return path;
+}
+
+///////////////////////////////////////////////////////////////////////
+
+void tile::Set_ocean_terrain(const double sea_level)
+{
+  if(m_elevation <= sea_level)
+  {
+    m_terrain = ETerrain::ETERRAIN_Ocean;
+  }
+}
+
+///////////////////////////////////////////////////////////////////////
+
+void tile::Paint_terrain(const double sea_level)
+{
+  if (m_terrain == world_builder::ETerrain::ETERRAIN_Ocean)
+  {
+    return;
+  }
+
+  if(m_is_river)
+  {
+    m_terrain = world_builder::ETerrain::ETERRAIN_River;
+  }
+
+  if(m_is_coast && m_elevation <= sea_level + 0.03)
+  {
+    m_terrain = world_builder::ETerrain::ETERRAIN_Beach;
+  }
+  else if(m_elevation < sea_level + 0.07)
+  {
+    m_terrain = world_builder::ETerrain::ETERRAIN_Marsh;
+  }
+  else if(m_elevation < sea_level + 0.20)
+  {
+    m_terrain = world_builder::ETerrain::ETERRAIN_Plains;
+  }
+  else if(m_elevation < sea_level + 0.45)
+  {
+    m_terrain = world_builder::ETerrain::ETERRAIN_Hills;
+  }
+  else
+  {
+    if(m_elevation > 0.8)
+    {
+      m_terrain = world_builder::ETerrain::ETERRAIN_Mountains;
+    }
+    else
+    {
+      m_terrain = world_builder::ETerrain::ETERRAIN_Hills;
+    }
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////

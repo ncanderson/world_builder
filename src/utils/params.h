@@ -32,8 +32,10 @@ public:
 
   /**
    * @brief Default ctor, to support conditional instantiation in main()
+   * @details The default constructor will set up the random seed, but nothing
+   * else.
    */
-  Params() {}
+  Params();
 
   /**
    * Getters

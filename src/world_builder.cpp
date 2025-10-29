@@ -5,13 +5,15 @@
 
 // Standard libs
 #include <algorithm>
+#include <boost/program_options.hpp>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <random>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
-#include <boost/program_options.hpp>
 
 // JSON
 
@@ -21,8 +23,6 @@
 #include <geo_models/coord.h>
 #include <geo_models/continent.h>
 #include <geo_models/tile.h>
-
-// Data access layer
 
 ///////////////////////////////////////////////////////////////////////
 // Global Variables
@@ -65,6 +65,13 @@ int main(int argc, char *argv[])
   std::string app_cfg_path = "/home/nanderson/nate_personal/projects/world_builder/config/gen_params.json";
 
   //////////////////////////////////////////////////////
+  // Set up Runtime Objects
+
+  world_builder::Params params;
+  RNG rng(params.Get_seed());
+  std::unordered_map<world_builder::Coord, world_builder::Tile, world_builder::Coord_hash> tiles;
+
+  //////////////////////////////////////////////////////
   // Set up the program options
   namespace po = boost::program_options;
 
@@ -87,8 +94,6 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  world_builder::Params params;
-
   if(vm.count("app_cfg"))
   {
     try
@@ -109,13 +114,6 @@ int main(int argc, char *argv[])
     world_builder::Print_to_cout("No config found, exiting");
     return 1;
   }
-
-  //////////////////////////////////////////////////////
-  // Set up Runtime Objects
-
-  RNG rng(params.Get_seed());
-
-  std::unordered_map<world_builder::Coord, world_builder::Tile, world_builder::Coord_hash> tiles;
 
   // Using the params, build a grid of Coord objects, which are then used to
   // build a Tile. These tiles represent the individual unit that builds the
@@ -421,139 +419,111 @@ int main(int argc, char *argv[])
     std::cout << "  " << name << ": " << n << "\n";
   }
 
-  // -------------------------------------------------------------
-  // HTML VISUALIZATION OUTPUT
-  // -------------------------------------------------------------
+// -------------------------------------------------------------
+// HTML VISUALIZATION OUTPUT
+// -------------------------------------------------------------
+  try
   {
-    // Create ./output directory if missing
     std::filesystem::path outputDir = std::filesystem::path(PROJECT_ROOT_DIR) / "output";
     std::filesystem::create_directories(outputDir);
     std::filesystem::path outputFile = outputDir / "index.html";
     std::ofstream html(outputFile);
+    if (!html) throw std::runtime_error("Failed to open index.html for writing");
 
-    if(!html)
-    {
-      std::cerr << "Failed to open index.html for writing.\n";
-    }
-    else
-    {
-      int scale = 10; // change this to make each tile bigger/smaller
-      html << R"(<!DOCTYPE html>
+    int tileWidth = params.Get_width();
+    int tileHeight = params.Get_height();
+
+    html << R"(<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>World Preview</title>
 <style>
-  html, body {
-    margin: 0;
-    padding: 0;
-    background: #111;
-    height: 100%;
-    overflow: hidden;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-  #container {
-    position: relative;
-    width: 100%;
-    height: 100%;
-  }
-  canvas {
-    image-rendering: pixelated;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    border: 1px solid #333;
-  }
-  #legend {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    font-family: monospace;
-    color: #eee;
-    background: rgba(0,0,0,0.5);
-    padding: 6px 10px;
-    border-radius: 6px;
-  }
-  .swatch {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    margin-right: 6px;
-    vertical-align: middle;
-  }
+  html, body { margin:0; padding:0; background:#111; height:100%; width:100%; overflow:hidden; display:flex; justify-content:center; align-items:center; }
+  canvas { image-rendering: pixelated; display:block; border:1px solid #333; }
+  #legend { position:absolute; top:10px; left:10px; font-family:monospace; color:#eee; background: rgba(0,0,0,0.5); padding:6px 10px; border-radius:6px; }
+  .swatch { display:inline-block; width:12px; height:12px; margin-right:6px; vertical-align:middle; }
 </style>
 </head>
 <body>
-<div id="container">
-  <div id="legend">
-    <div><span class="swatch" style="background:#004;"></span>Ocean</div>
-    <div><span class="swatch" style="background:#66f;"></span>River</div>
-    <div><span class="swatch" style="background:#eeddaa;"></span>Beach</div>
-    <div><span class="swatch" style="background:#88aa55;"></span>Plains</div>
-    <div><span class="swatch" style="background:#557744;"></span>Hills</div>
-    <div><span class="swatch" style="background:#999999;"></span>Mountains</div>
-  </div>
-  <canvas id="map" width=)" << params.Get_width() << " height=" << params.Get_height() << R"(></canvas>
+<div id="legend">
+  <div><span class="swatch" style="background:#004;"></span>Ocean</div>
+  <div><span class="swatch" style="background:#66f;"></span>River</div>
+  <div><span class="swatch" style="background:#eeddaa;"></span>Beach</div>
+  <div><span class="swatch" style="background:#88aa55;"></span>Plains</div>
+  <div><span class="swatch" style="background:#557744;"></span>Hills</div>
+  <div><span class="swatch" style="background:#999;"></span>Mountains</div>
 </div>
+<canvas id="map"></canvas>
 <script>
-const canvas = document.getElementById('map');
-const ctx = canvas.getContext('2d');
-const img = ctx.createImageData(canvas.width, canvas.height);
-const data = img.data;
-)";
+window.onload = function() {
+    const canvas = document.getElementById('map');
+    const ctx = canvas.getContext('2d');
 
-      // Write out tile array
-      html << "const tiles = [\n";
-      for (int r = 0; r < params.Get_height(); ++r)
-      {
-        for (int q = 0; q < params.Get_width(); ++q)
-        {
-          const world_builder::Tile& t = tiles.at({q, r});
-          std::string_view terrain_string = world_builder::Enum_to_string<world_builder::ETerrain>(t.Get_terrain(),
-                                                                                                   world_builder::TERRAIN_LOOKUP);
-          html << "{e:" << t.Get_elevation() << ",t:'" << terrain_string << "'},";
-        }
-        html << "\n";
+    const tileWidth = )" << tileWidth << R"(;
+    const tileHeight = )" << tileHeight << R"(;
+
+    // Tile data
+    const tiles = [)";
+
+    for(int r=0; r<tileHeight; ++r){
+      for(int q=0; q<tileWidth; ++q){
+        const world_builder::Tile& t = tiles.at({q,r});
+        std::string terrain_string = std::string(
+            world_builder::Enum_to_string<world_builder::ETerrain>(t.Get_terrain(), world_builder::TERRAIN_LOOKUP)
+            );
+        html << "{e:" << t.Get_elevation() << ",t:'" << terrain_string << "'},";
       }
-      html << "];\n";
-
-      html << R"(
-// Render map pixels
-for (let y = 0; y < canvas.height; ++y) {
-  for (let x = 0; x < canvas.width; ++x) {
-    const i = y * canvas.width + x;
-    const tile = tiles[i];
-    let r,g,b;
-    switch(tile.t) {
-      case 'ocean':     r=0; g=0; b=100 + tile.e*100; break;
-      case 'river':     r=80; g=120; b=255; break;
-      case 'beach':     r=238; g=214; b=175; break;
-      case 'marsh':     r=110; g=150; b=90; break;
-      case 'plains':    r=136; g=170; b=85; break;
-      case 'hills':     r=85; g=119; b=68; break;
-      case 'mountain':  r=150 + tile.e*100; g=150 + tile.e*100; b=150 + tile.e*100; break;
-      default:          r=g=b=50;
+      html << "\n";
     }
-    const j = ((canvas.height - 1 - y) * canvas.width + x) * 4; // flip vertically
-    data[j] = r;
-    data[j+1] = g;
-    data[j+2] = b;
-    data[j+3] = 255;
-  }
-}
-ctx.putImageData(img, 0, 0);
+    html << "];\n";
+
+    html << R"(
+
+    function drawTiles(scale) {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        for(let y=0; y<tileHeight; y++){
+            for(let x=0; x<tileWidth; x++){
+                const tile = tiles[y*tileWidth + x];
+                let color = '#333';
+                switch(tile.t){
+                    case 'Ocean': color='#004'; break;
+                    case 'River': color='#66f'; break;
+                    case 'Beach': color='#eeddaa'; break;
+                    case 'Plains': color='#88aa55'; break;
+                    case 'Hills': color='#557744'; break;
+                    case 'Mountain': color='#999'; break;
+                    default: color='#333'; break;
+                }
+                ctx.fillStyle = color;
+                ctx.fillRect(x*scale, y*scale, scale, scale);
+            }
+        }
+    }
+
+    function resizeCanvas() {
+        const scaleX = window.innerWidth / tileWidth;
+        const scaleY = window.innerHeight / tileHeight;
+        const scale = Math.floor(Math.min(scaleX, scaleY));
+        canvas.width = tileWidth * scale;
+        canvas.height = tileHeight * scale;
+        drawTiles(scale);
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas(); // initial draw
+};
 </script>
 </body>
 </html>
 )";
 
-      html.close();
-      std::cout << "HTML world map written to index.html (open in browser)\n";
-    }
+    html.close();
+    std::cout << "HTML world map written to index.html\n";
   }
-
+  catch (const std::exception& e) {
+    std::cerr << "Exception: " << e.what() << "\n";
+  }
 
   return 0;
 }

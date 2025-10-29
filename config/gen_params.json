@@ -1,9 +1,9 @@
 {
-  "width": 300,
-  "height": 150,
-  "smooth_passes": 6,
-  "randomness": 0.8,
-  "sea_level": 0.5,
+  "width": 100,
+  "height": 50,
+  "smooth_passes": 5,
+  "randomness": 0.99,
+  "sea_level": 0.6,
   "river_spawn_prob": 0.02,
   "max_river_length": 300
 }

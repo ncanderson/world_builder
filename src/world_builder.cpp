@@ -2,7 +2,6 @@
  * Copyright (C) 2025 Nate Anderson - All Rights Reserved
  */
 
-
 // Standard libs
 #include <boost/program_options.hpp>
 #include <exception>
@@ -24,7 +23,7 @@ int main(int argc, char *argv[])
 {
   //////////////////////////////////////////////////////
   // Config defaults
-  std::string app_cfg_path = "/home/nanderson/nate_personal/projects/world_builder/config/gen_params.json";
+  std::string app_cfg_path;
 
   //////////////////////////////////////////////////////
   // Set up Runtime Objects

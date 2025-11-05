@@ -1,0 +1,3 @@
+[submodule "external/fantasy_map_generator"]
+	path = external/fantasy_map_generator
+	url = git@github.com:ncanderson/FantasyMapGenerator.git

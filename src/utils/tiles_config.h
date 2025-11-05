@@ -2,8 +2,8 @@
  * Copyright (C) 2025 Nate Anderson - All Rights Reserved
  */
 
-#ifndef PARAMS_H
-#define PARAMS_H
+#ifndef TILES_CONFIG_H
+#define TILES_CONFIG_H
 
 // Standard libs
 #include <fstream>
@@ -16,26 +16,27 @@
 namespace world_builder
 {
 /**
- * @brief The Params class
+ * @brief Config for the tiles-based generation algorithm
  */
-class Params
+class Tiles_config
 {
 public:
-  // Attributes
-
   // Implementation
   /**
    * @brief Constructor
    * @param Path to the params file
    */
-  Params(std::ifstream params_path);
+  Tiles_config(std::ifstream params_path);
 
   /**
-   * @brief Default ctor, to support conditional instantiation in main()
-   * @details The default constructor will set up the random seed, but nothing
-   * else.
+   * @brief Default ctor that will just initialize the random seed
    */
-  Params();
+  Tiles_config();
+
+  /**
+   * @brief Apply configuration to the tiles-based map generator
+   */
+  void Apply() const;
 
   /**
    * Getters

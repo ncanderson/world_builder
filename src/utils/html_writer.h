@@ -39,7 +39,7 @@ public:
    * @param filename File to write to
    */
   void Write(const World_tiles& world_tiles,
-             const world_builder::Params& params,
+             const world_builder::Tiles_config& params,
              std::string filename = "index.html") const;
 
 private:

@@ -9,15 +9,15 @@
 #include <deps/json.hpp>
 
 // Application files
-#include <utils/params.h>
+#include <utils/tiles_config.h>
 
 ///////////////////////////////////////////////////////////////////////
 
-using params = world_builder::Params;
+using tiles = world_builder::Tiles_config;
 
 ///////////////////////////////////////////////////////////////////////
 
-params::Params(std::ifstream params_path)
+tiles::Tiles_config(std::ifstream params_path)
   :
   m_width(),
   m_height(),
@@ -41,7 +41,7 @@ params::Params(std::ifstream params_path)
 
 ///////////////////////////////////////////////////////////////////////
 
-params::Params()
+tiles::Tiles_config()
   :
   m_seed(std::random_device{}())
 { }

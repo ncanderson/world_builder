@@ -24,7 +24,7 @@ html::HTML_writer(std::filesystem::path output_dir)
 
 // TODO Add for loop for the legend, so it will include all enumerated values!
 void html::Write(const World_tiles& tiles,
-                 const world_builder::Params& params,
+                 const world_builder::Tiles_config& params,
                  std::string filename) const
 {
   try

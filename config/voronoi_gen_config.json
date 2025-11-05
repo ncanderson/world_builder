@@ -1,0 +1,27 @@
+{
+  "seed": 0,
+  "resolution": 0.08,
+  "outfile_ext": ".png",
+  "outfile": "output.png",
+
+  "erosion_amount": -1.0,
+  "erosion_iterations": 3,
+
+  "num_cities": -1,
+  "num_towns": -1,
+
+  "image_width": 1920,
+  "image_height": 1080,
+  "default_extents_height": 20.0,
+  "draw_scale": 1.0,
+
+  "enable_slopes": true,
+  "enable_rivers": true,
+  "enable_contour": true,
+  "enable_borders": true,
+  "enable_cities": true,
+  "enable_towns": true,
+  "enable_labels": true,
+  "enable_area_labels": true,
+  "verbose": false
+}

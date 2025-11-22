@@ -16,9 +16,7 @@
 #include <utils/voronoi_config.h>
 #include <utils/world_builder_utils.h>
 #include <utils/stopwatch.h>
-
-// External Dependencies
-#include "mapgenerator.h"
+#include <geo_models/voronoi/poisson_disc.h>
 
 ///////////////////////////////////////////////////////////////////////
 
@@ -156,20 +154,23 @@ int main(int argc, char *argv[])
   // Set up the world
   // Now that I'm doing the config like I am, can re-add the tiles world setup
 
-  uint32_t img_width = voronoi_config.Get_image_width();
-  uint32_t img_height = voronoi_config.Get_image_height();
-  double aspect_ratio = (double)img_width / (double)img_height;
-  double extents_height = voronoi_config.Get_default_extents_height();
-  double extents_width = aspect_ratio * extents_height;
-  Extents2d extents(0, 0, extents_width, extents_height);
-  gen::MapGenerator map(extents, gen::config::resolution, imgWidth, imgHeight);
-  map.setDrawScale(gen::config::drawScale);
+  // Instantiate the generator
+  world_builder::Poisson_disc point_sampler(voronoi_config.Get_width(),
+                                            voronoi_config.Get_height(),
+                                            voronoi_config.Get_min_distance(),
+                                            voronoi_config.Get_attempts());
+
+  // Generate points
+  std::vector<world_builder::Point> points = point_sampler.Generate();
+
 
   //////////////////////////////////////////////////////
   // Build the world
 
   //////////////////////////////////////////////////////
   // World Visualization
+
+  point_sampler.Save_points_as_ppm("/home/nanderson/nate_personal/projects/world_builder/output/poisson_points.ppm");
 
   return 0;
 }

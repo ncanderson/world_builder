@@ -13,10 +13,12 @@
 // Application files
 #include <defs/dice_rolls.h>
 #include <utils/tiles_config.h>
-#include <utils/voronoi_config.h>
 #include <utils/world_builder_utils.h>
 #include <utils/stopwatch.h>
+// Voronoi
+#include <utils/voronoi_config.h>
 #include <geo_models/voronoi/poisson_disc.h>
+#include <geo_models/voronoi/voronoi_builder.h>
 
 ///////////////////////////////////////////////////////////////////////
 
@@ -151,7 +153,8 @@ int main(int argc, char *argv[])
   }
 
   //////////////////////////////////////////////////////
-  // Set up the world
+  // Build the world
+
   // Now that I'm doing the config like I am, can re-add the tiles world setup
 
   // Instantiate the generator
@@ -159,15 +162,23 @@ int main(int argc, char *argv[])
                                             voronoi_config.Get_height(),
                                             voronoi_config.Get_min_distance(),
                                             voronoi_config.Get_attempts());
-
-  //////////////////////////////////////////////////////
-  // Build the world
-
   // Generate points
   std::vector<world_builder::Point> points = point_sampler.Generate();
 
   // Output Poisson disc points
   point_sampler.Save_points_as_ppm("/home/nanderson/nate_personal/projects/world_builder/output/poisson_points.ppm");
+
+  //////////////////////////////////////////////////////
+  // Points to Voronoi polygons
+
+  world_builder::Voronoi_builder voronoi_builder(voronoi_config.Get_width(),
+                                                voronoi_config.Get_height(),
+                                                voronoi_config.Get_voronoi_scale_factor());
+
+  std::vector<world_builder::Cell> cells = voronoi_builder.Build_cells(points);
+
+  // Show colored cells
+  voronoi_builder.Export_PPM("/home/nanderson/nate_personal/projects/world_builder/output/voronoi_cells.ppm");
 
   //////////////////////////////////////////////////////
   // World Visualization

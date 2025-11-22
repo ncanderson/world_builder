@@ -39,6 +39,7 @@ public:
   const double Get_height() const { return m_height; }
   const double Get_min_distance() const { return m_min_distance; }
   const int Get_attempts() const { return m_k_attempts; }
+  const double Get_voronoi_scale_factor() const { return m_voronoi_scale_factor; }
 
 private:
   // Attributes
@@ -61,6 +62,16 @@ private:
    * @brief Number of attempts to find a new valid point
    */
   int m_k_attempts;
+
+  /**
+   * @brief Scale factor for the Voronoi builder.
+   * @details Smaller scale factor means coarser rounding, some points may collapse
+   * if decimal precision is removed, and Voronoi cells can become slightly more uniform
+   * with less variation in shape and size.
+   * A larger scale factor means more precise site positions, cells preserve
+   * subtle differences, and slightly more irregular/organic-looking cells.
+   */
+  double m_voronoi_scale_factor;
 
   // Implementation
 

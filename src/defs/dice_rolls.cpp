@@ -22,3 +22,16 @@ bool world_builder::dice::Flip_a_coin()
 }
 
 ///////////////////////////////////////////////////////////////////////
+
+std::array<unsigned char, 3> world_builder::dice::Create_random_color(int min_value,
+                                                                      int max_value)
+{
+  std::array<unsigned char, 3> color{
+      static_cast<unsigned char>(Make_a_roll<int>(min_value, max_value)),
+      static_cast<unsigned char>(Make_a_roll<int>(min_value, max_value)),
+      static_cast<unsigned char>(Make_a_roll<int>(min_value, max_value))
+  };
+  return color;
+}
+
+///////////////////////////////////////////////////////////////////////

@@ -2,5 +2,6 @@
   "map_width": 1000,
   "map_height": 600,
   "point_min_distance": 10,
-  "point_attempts": 30
+  "point_attempts": 30,
+  "voronoi_scale_factor": 1000
 }

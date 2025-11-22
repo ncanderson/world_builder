@@ -8,6 +8,7 @@
 // Standard libs
 #include <stdexcept>
 #include <random>
+#include <array>
 
 // JSON
 
@@ -111,6 +112,15 @@ decltype(auto) Get_random_element(V&& vector)
   // Get the object
   return std::forward<V>(vector)[dist(Get_generator())];
 }
+
+/**
+ * @brief Create a random RGB color
+ * @param min_value Min RGB value
+ * @param max_value Max RGB value
+ * @return The new, random RGB color
+ */
+std::array<unsigned char, 3> Create_random_color(int min_value = 50,
+                                                 int max_value = 255);
 
 }
 }

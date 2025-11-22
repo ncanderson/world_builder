@@ -160,17 +160,18 @@ int main(int argc, char *argv[])
                                             voronoi_config.Get_min_distance(),
                                             voronoi_config.Get_attempts());
 
+  //////////////////////////////////////////////////////
+  // Build the world
+
   // Generate points
   std::vector<world_builder::Point> points = point_sampler.Generate();
 
-
-  //////////////////////////////////////////////////////
-  // Build the world
+  // Output Poisson disc points
+  point_sampler.Save_points_as_ppm("/home/nanderson/nate_personal/projects/world_builder/output/poisson_points.ppm");
 
   //////////////////////////////////////////////////////
   // World Visualization
 
-  point_sampler.Save_points_as_ppm("/home/nanderson/nate_personal/projects/world_builder/output/poisson_points.ppm");
 
   return 0;
 }

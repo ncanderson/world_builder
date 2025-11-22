@@ -7,7 +7,7 @@
 // JSON
 
 // Application files
-#include <geo_models/terrain.h>
+#include <geo_models/tiles/terrain.h>
 
 ///////////////////////////////////////////////////////////////////////
 

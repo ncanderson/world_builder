@@ -8,8 +8,8 @@
 // JSON
 
 // Application files
-#include <geo_models/tile.h>
-#include <utils/params.h>
+#include <geo_models/tiles/tile.h>
+#include <utils/tiles_config.h>
 
 ///////////////////////////////////////////////////////////////////////
 
@@ -98,7 +98,7 @@ std::optional<world_builder::Coord> tile::Downhill_neighbor(const world_builder:
 
 std::vector<world_builder::Coord> tile::Trace_river(const Coord& start,
                                                     world_builder::World_tiles& tiles,
-                                                    const Params& params)
+                                                    const Tiles_config& params)
 {
   std::vector<Coord> path;
   Coord cur = start;

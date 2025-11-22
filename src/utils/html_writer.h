@@ -11,8 +11,8 @@
 // JSON
 
 // Application files
-#include <geo_models/tile.h>
-#include <utils/params.h>
+#include <geo_models/tiles/tile.h>
+#include <utils/tiles_config.h>
 
 namespace world_builder
 {

@@ -7,7 +7,7 @@
 // JSON
 
 // Application files
-#include <geo_models/coord.h>
+#include <geo_models/tiles/coord.h>
 #include <defs/world_builder_defs.h>
 
 ///////////////////////////////////////////////////////////////////////

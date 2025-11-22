@@ -11,12 +11,13 @@
 
 // Application files
 #include <defs/world_builder_defs.h>
-#include <geo_models/tile.h>
+#include <geo_models/tiles/tile.h>
 
 namespace world_builder
 {
 
 class Continent;
+class Tiles_config;
 
 /**
  * @brief The World class
@@ -31,7 +32,7 @@ public:
    * @brief Constructor
    * @param params
    */
-  World(const Params& params);
+  World(const Tiles_config& tiles_config);
 
   /**
    * @brief Seed_continents
@@ -79,7 +80,7 @@ private:
   /**
    * @brief Params
    */
-  const Params& m_params;
+  const Tiles_config& m_tiles_config;
 
   /**
    * @brief The tiles making up the world

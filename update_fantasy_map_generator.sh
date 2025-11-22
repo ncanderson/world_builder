@@ -8,7 +8,7 @@
 
 set -e
 
-REPO_URL="git@github.com:ncanderson/FantasyMapGenerator.git"
+REPO_URL="git@github.com:rlguy/FantasyMapGenerator.git"
 TARGET_DIR="external/fantasy_map_generator"
 BRANCH="master"
 

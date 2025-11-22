@@ -42,3 +42,10 @@ target_include_directories(${project_name} PRIVATE ${include_dirs})
 
 # Write output relative to source dir
 add_definitions(-DPROJECT_ROOT_DIR="${CMAKE_SOURCE_DIR}")
+
+######################################
+# Pull in external dependencies via git submodule
+
+add_subdirectory(external/fantasy_map_generator)
+
+target_link_libraries(world_builder map_generation)

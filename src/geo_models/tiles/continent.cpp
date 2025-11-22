@@ -7,7 +7,7 @@
 // JSON
 
 // Application files
-#include <geo_models/continent.h>
+#include <geo_models/tiles/continent.h>
 
 ///////////////////////////////////////////////////////////////////////
 

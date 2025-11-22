@@ -17,6 +17,9 @@
 #include <utils/world_builder_utils.h>
 #include <utils/stopwatch.h>
 
+// External Dependencies
+#include "mapgenerator.h"
+
 ///////////////////////////////////////////////////////////////////////
 
 /**

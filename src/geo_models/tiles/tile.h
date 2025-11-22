@@ -14,8 +14,8 @@
 
 // Application files
 #include <defs/world_builder_defs.h>
-#include <geo_models/coord.h>
-#include <geo_models/terrain.h>
+#include <geo_models/tiles/coord.h>
+#include <geo_models/tiles/terrain.h>
 
 namespace world_builder
 {
@@ -23,7 +23,7 @@ namespace world_builder
 /**
  *  Forward declarations
  */
-class Params;
+class Tiles_config;
 class Tile;
 
 /**
@@ -100,7 +100,7 @@ public:
    */
   std::vector<Coord> Trace_river(const Coord& start,
                                  world_builder::World_tiles& tiles,
-                                 const Params& P);
+                                 const Tiles_config& P);
 
   /**
    * @brief Set ocean terrain for this tile, based on sea level

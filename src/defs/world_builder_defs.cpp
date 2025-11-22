@@ -9,7 +9,7 @@
 
 // Application files
 #include <defs/world_builder_defs.h>
-#include <geo_models/coord.h>
+#include <geo_models/tiles/coord.h>
 
 ///////////////////////////////////////////////////////////////////////
 

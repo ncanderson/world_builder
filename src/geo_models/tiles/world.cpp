@@ -8,9 +8,9 @@
 
 // Application files
 #include <defs/dice_rolls.h>
-#include <geo_models/continent.h>
-#include <geo_models/world.h>
-#include <utils/params.h>
+#include <geo_models/tiles/continent.h>
+#include <geo_models/tiles/world.h>
+#include <utils/tiles_config.h>
 
 ///////////////////////////////////////////////////////////////////////
 
@@ -18,9 +18,9 @@ using wd = world_builder::World;
 
 ///////////////////////////////////////////////////////////////////////
 
-wd::World(const Params& params)
+wd::World(const Tiles_config& tiles_config)
   :
-  m_params(params),
+  m_tiles_config(tiles_config),
   m_world_tiles(),
   m_continents(),
   m_seeds_per_continent(0)
@@ -28,9 +28,9 @@ wd::World(const Params& params)
   // Using the params, build a grid of Coord objects, which are then used to
   // build a Tile. These tiles represent the individual unit that builds the
   // whole map.
-  for(int q = 0; q < params.Get_width(); ++q)
+  for(int q = 0; q < tiles_config.Get_width(); ++q)
   {
-    for(int r = 0; r < params.Get_height(); ++r)
+    for(int r = 0; r < tiles_config.Get_height(); ++r)
     {
       world_builder::Coord new_coord = world_builder::Coord(q, r);
       m_world_tiles.try_emplace(new_coord, world_builder::Tile(new_coord));
@@ -44,21 +44,21 @@ void wd::Seed_continents()
 {
   // Define 2–4 continents depending on map size
   int num_continents = std::max(static_cast<uint32_t>(2),
-                                m_params.Get_width() / 40);
+                                m_tiles_config.Get_width() / 40);
 
   // Padding around the edge of the map, so continents don't wrap around the edge
   for (int i = 0; i < num_continents; ++i)
   {
     m_continents.push_back({
-        world_builder::dice::Make_a_roll<int32_t>(m_params.Get_width() / 8, m_params.Get_width() * 7 / 8),
-        world_builder::dice::Make_a_roll<int32_t>(m_params.Get_height() / 8, m_params.Get_height() * 7 / 8),
-        world_builder::dice::Make_a_roll<double>(m_params.Get_width() / 6.0, m_params.Get_width() / 4.0)
+        world_builder::dice::Make_a_roll<int32_t>(m_tiles_config.Get_width() / 8, m_tiles_config.Get_width() * 7 / 8),
+        world_builder::dice::Make_a_roll<int32_t>(m_tiles_config.Get_height() / 8, m_tiles_config.Get_height() * 7 / 8),
+        world_builder::dice::Make_a_roll<double>(m_tiles_config.Get_width() / 6.0, m_tiles_config.Get_width() / 4.0)
     });
   }
 
   // Place elevation seeds around each continent center
   m_seeds_per_continent = std::max(static_cast<uint32_t>(3),
-                                   (m_params.Get_width() * m_params.Get_height()) / (200 * num_continents));
+                                   (m_tiles_config.Get_width() * m_tiles_config.Get_height()) / (200 * num_continents));
   for (auto& c : m_continents)
   {
     for (int i = 0; i < m_seeds_per_continent; ++i)
@@ -68,7 +68,7 @@ void wd::Seed_continents()
       int q_coord = c.Get_center_q() + static_cast<int>(dist * cos(angle));
       int r_coord = c.Get_center_r() + static_cast<int>(dist * sin(angle));
 
-      if(q_coord >= 0 && q_coord < m_params.Get_width() && r_coord >= 0 && r_coord < m_params.Get_height())
+      if(q_coord >= 0 && q_coord < m_tiles_config.Get_width() && r_coord >= 0 && r_coord < m_tiles_config.Get_height())
       {
         // Skewed toward land
         world_builder::Coord coord = world_builder::Coord(q_coord, r_coord);
@@ -90,8 +90,8 @@ void wd::Seed_oceans()
   int oceanSeeds = m_seeds_per_continent; // same count as land seeds
   for (int i = 0; i < oceanSeeds; ++i)
   {
-    int q = world_builder::dice::Make_a_roll<int>(0, m_params.Get_width() - 1);
-    int r = world_builder::dice::Make_a_roll<int>(0, m_params.Get_height() - 1);
+    int q = world_builder::dice::Make_a_roll<int>(0, m_tiles_config.Get_width() - 1);
+    int r = world_builder::dice::Make_a_roll<int>(0, m_tiles_config.Get_height() - 1);
 
     // skip tiles that are close to a continent center
     bool nearContinent = false;
@@ -126,7 +126,7 @@ void wd::Run_diffusion()
 {
   // Diffusion / smoothing. For every smoothing pass, this will set the elevation for each
   // to based on the average of all neighbors with some random noise injected.
-  for (int pass = 0; pass < m_params.Get_smooth_passes(); ++pass)
+  for (int pass = 0; pass < m_tiles_config.Get_smooth_passes(); ++pass)
   {
     // Temp map to hold all coordinates, allowing update of the main map after
     // doing the smoothing passes
@@ -175,7 +175,7 @@ void wd::Run_diffusion()
       // (rng.uniform() - 0.5): Make the number in the range of -.5 to .5
       // * params.randomness: Augment the random roll with the additional randomness factor
       // (1.0 - (double)pass / params.smooth_passes): Dampens the noise gradually with each smoothing pass.
-      double noise = (world_builder::dice::Make_a_roll<double>(0, 1) - 0.5) * m_params.Get_randomness() * (1.0 - (double)pass / m_params.Get_smooth_passes());
+      double noise = (world_builder::dice::Make_a_roll<double>(0, 1) - 0.5) * m_tiles_config.Get_randomness() * (1.0 - (double)pass / m_tiles_config.Get_smooth_passes());
 
       // New elevation is a weighted average between (old elevation) and (neighbor mean), plus some fading noise.
       // If blend = 0.5 → half current height, half neighbors → moderate smoothing.
@@ -227,7 +227,7 @@ void wd::Run_oceans_and_coasts()
   // neighbors are oceans
   for(auto& [c, t] : m_world_tiles)
   {
-    t.Set_ocean_terrain(m_params.Get_sea_level());
+    t.Set_ocean_terrain(m_tiles_config.Get_sea_level());
   }
 
   // Mark coasts
@@ -261,10 +261,10 @@ void wd::Run_rivers()
   for(auto& [c, t] : m_world_tiles)
   {
     // Check elevation. greater than sea level (plus a pad), and make a roll against probability
-    if(t.Get_elevation() > m_params.Get_sea_level() + 0.05 && world_builder::dice::Make_a_roll<double>(0, 1) < m_params.Get_river_spawn_prob())
+    if(t.Get_elevation() > m_tiles_config.Get_sea_level() + 0.05 && world_builder::dice::Make_a_roll<double>(0, 1) < m_tiles_config.Get_river_spawn_prob())
     {
       // Trace a river path,
-      auto path = t.Trace_river(c, m_world_tiles, m_params);
+      auto path = t.Trace_river(c, m_world_tiles, m_tiles_config);
       // if there are three or more tiles,
       if (path.size() >= 3)
       {
@@ -298,7 +298,7 @@ void wd::Paint_terrain()
 {
   for (auto& [coord, tile] : m_world_tiles)
   {
-    tile.Paint_terrain(m_params.Get_sea_level());
+    tile.Paint_terrain(m_tiles_config.Get_sea_level());
   }
 }
 

@@ -113,12 +113,15 @@ private:
 
   // Implementation
   /**
-   * @brief Duplicate points across the map boundary to improve lloyd relaxation
-   * at the map edges
-   * @param points
-   * @return
+   * @brief Create dummy points for every map point. These dummy points will be
+   * used to bridge the boundary on the east/west map edges, allowing those cells
+   * to pretend they are adjacent. This allows for:
+   * 1. Full voronoi polygon creation of edge cells
+   * 2. Smooth transition across the map boundary for adjacent cells
+   * @param points The points to create ghosts for
+   * @return A vector of all ghost points
    */
-  std::vector<Point> prepare_toroidal_points(const std::vector<Point>& points);
+  std::vector<Point> world_wrap_ghost_points(const std::vector<Point>& points);
 
 };
 }

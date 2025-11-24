@@ -1,6 +1,5 @@
 
-Wire Boost.Polygon Voronoi builder + produce raw cells (polygons).
-Render raw polygons in HTML (quick visual feedback).
+
 Add Lloyd relaxation (1–3 iterations) to improve cell shapes.
 Implement a simple elevation assigner (distance-based island mask + random mountain seeds).
 Visualize elevation coloring (we already made elevation-based coloring for tiles; reuse it but for cells).

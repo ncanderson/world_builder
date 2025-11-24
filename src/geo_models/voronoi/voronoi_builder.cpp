@@ -47,22 +47,31 @@ std::vector<world_builder::Cell> vb::Build_cells(const std::vector<Point>& point
 
   m_cells.clear();
 
-  // Use points directly – no wrapping or duplication
+  // Create extended points for horizontal toroidal wrapping (ghost points)
+  std::vector<Point> extended_points = world_wrap_ghost_points(points);
+
+  // Convert extended points to Boost polygon points
   std::vector<point_data<double>> boost_points;
-  boost_points.reserve(points.size());
-  for (const auto& p : points)
+  boost_points.reserve(extended_points.size());
+  for (const auto& p : extended_points)
   {
     boost_points.emplace_back(p.x * m_scale_factor, p.y * m_scale_factor);
   }
 
-  voronoi_diagram<double> vd;
-  construct_voronoi(boost_points.begin(), boost_points.end(), &vd);
+  voronoi_diagram<double> voronoi_diagram;
+  construct_voronoi(boost_points.begin(),
+                    boost_points.end(),
+                    &voronoi_diagram);
 
-  // Convert edges to cells
+  // Convert edges to cells, keeping only original points
   int next_id = 0;
-  for (auto it = vd.cells().begin(); it != vd.cells().end(); ++it)
+  for (auto it = voronoi_diagram.cells().begin();
+       it != voronoi_diagram.cells().end();
+       ++it)
   {
     int idx = it->source_index();
+
+    // Skip ghost points; only keep cells corresponding to original points
     if (idx < 0 || idx >= points.size())
     {
       continue;
@@ -83,29 +92,53 @@ std::vector<world_builder::Cell> vb::Build_cells(const std::vector<Point>& point
       cell.color = dice::Create_random_color();
     }
 
+    // Get the first incident edge of this Voronoi cell
     const auto* edge = it->incident_edge();
+
+    // Skip cells that have no edges (this can happen for some degenerate points)
     if (!edge)
     {
       continue;
     }
 
+    // Save the starting edge so we know when we've looped all the way around
     const auto* start = edge;
     const auto* e = start;
+
+    // Loop over all edges around the cell
     do
     {
+      // Only consider primary half-edges (each edge appears twice in the diagram)
+      // and skip edges that are "infinite" (have no defined vertices)
       if (e->is_primary() && e->vertex0() && e->vertex1())
       {
-        Point v0{ e->vertex0()->x() / m_scale_factor,
-                 e->vertex0()->y() / m_scale_factor };
+        // Extract the first endpoint of this edge and scale back to map coordinates
+        Point v0{
+            e->vertex0()->x() / m_scale_factor,
+            e->vertex0()->y() / m_scale_factor
+        };
 
-        Point v1{ e->vertex1()->x() / m_scale_factor,
-                 e->vertex1()->y() / m_scale_factor };
+        // Extract the second endpoint of this edge and scale back to map coordinates
+        Point v1{
+            e->vertex1()->x() / m_scale_factor,
+            e->vertex1()->y() / m_scale_factor
+        };
 
+        // Optionally wrap vertices horizontally into map bounds
+        while (v0.x < 0) { v0.x += m_width; }
+        while (v0.x >= m_width) { v0.x -= m_width; }
+        while (v1.x < 0) { v1.x += m_width; }
+        while (v1.x >= m_width) { v1.x -= m_width; }
+
+        // Add both vertices to the current cell's vertex list
         cell.vertices.push_back(v0);
         cell.vertices.push_back(v1);
       }
 
+      // Move to the next edge around this cell
       e = e->next();
+
+      // Continue until we've returned to the starting edge, completing the loop
     } while (e != start);
 
     m_cells.push_back(cell);
@@ -193,7 +226,7 @@ void vb::Export_PPM(const std::string& filename)
       {
         double dx = m_cells[i].site.x - x;
         double dy = m_cells[i].site.y - y;
-        double d2 = dx*dx + dy*dy;
+        double d2 = (dx * dx) + (dy * dy);
         if (d2 < min_dist)
         {
           min_dist = d2;
@@ -226,6 +259,28 @@ void vb::Export_PPM(const std::string& filename)
     ofs << "\n";
   }
   ofs.close();
+}
+
+///////////////////////////////////////////////////////////////////////
+
+std::vector<world_builder::Point> vb::world_wrap_ghost_points(const std::vector<Point>& points)
+{
+  std::vector<Point> extended;
+  extended.reserve(points.size() * 3);
+
+  for (const auto& p : points)
+  {
+    // Original point
+    extended.push_back(p);
+
+    // Ghost point shifted left
+    extended.push_back(Point{ p.x - m_width, p.y });
+
+    // Ghost point shifted right
+    extended.push_back(Point{ p.x + m_width, p.y });
+  }
+
+  return extended;
 }
 
 ///////////////////////////////////////////////////////////////////////

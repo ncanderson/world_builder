@@ -40,6 +40,7 @@ public:
   const double Get_min_distance() const { return m_min_distance; }
   const int Get_attempts() const { return m_k_attempts; }
   const double Get_voronoi_scale_factor() const { return m_voronoi_scale_factor; }
+  const int Get_relax_iterations() const { return m_relax_iterations; }
 
 private:
   // Attributes
@@ -72,6 +73,11 @@ private:
    * subtle differences, and slightly more irregular/organic-looking cells.
    */
   double m_voronoi_scale_factor;
+
+  /**
+   * @brief Number of relaxation passes to run on the Voronoi polygons
+   */
+  int m_relax_iterations;
 
   // Implementation
 

@@ -26,6 +26,12 @@ using namespace boost::polygon;
  */
 struct Cell
 {
+
+  /**
+   * @brief ID of the cell, used to preserve color for the output
+   */
+  int id;
+
   /**
    * @brief A point in the Poisson grid
    */
@@ -35,6 +41,11 @@ struct Cell
    * @brief The vertices of the point
    */
   std::vector<Point> vertices;
+
+  /**
+   * @brief The random color for visualization
+   */
+  std::array<unsigned char, 3> color;
 };
 
 /**
@@ -60,6 +71,12 @@ public:
    * @return Vector of Voronoi cells
    */
   std::vector<Cell> Build_cells(const std::vector<Point>& points);
+
+  /**
+   * @brief Perform Lloyd relaxation on the current Voronoi cells
+   * @param iterations Number of iterations to run (1–3 is typical)
+   */
+  void Relax_cells(int iterations = 1);
 
   /**
    * @brief Export a simple PPM image of the Voronoi cells
@@ -95,6 +112,13 @@ private:
   std::vector<Cell> m_cells;
 
   // Implementation
+  /**
+   * @brief Duplicate points across the map boundary to improve lloyd relaxation
+   * at the map edges
+   * @param points
+   * @return
+   */
+  std::vector<Point> prepare_toroidal_points(const std::vector<Point>& points);
 
 };
 }

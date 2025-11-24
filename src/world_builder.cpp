@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
   std::vector<world_builder::Point> points = point_sampler.Generate();
 
   // Output Poisson disc points
-  point_sampler.Save_points_as_ppm("/home/nanderson/nate_personal/projects/world_builder/output/poisson_points.ppm");
+  point_sampler.Save_points_as_ppm("/home/nanderson/nate_personal/projects/world_builder/output/1_poisson_points.ppm");
 
   //////////////////////////////////////////////////////
   // Points to Voronoi polygons
@@ -175,10 +175,13 @@ int main(int argc, char *argv[])
                                                 voronoi_config.Get_height(),
                                                 voronoi_config.Get_voronoi_scale_factor());
 
-  std::vector<world_builder::Cell> cells = voronoi_builder.Build_cells(points);
+  //std::vector<world_builder::Cell> cells = voronoi_builder.Build_cells(points);
 
-  // Show colored cells
-  voronoi_builder.Export_PPM("/home/nanderson/nate_personal/projects/world_builder/output/voronoi_cells.ppm");
+  voronoi_builder.Build_cells(points);
+  voronoi_builder.Export_PPM("/home/nanderson/nate_personal/projects/world_builder/output/2_initial_v_cells.ppm");
+
+  voronoi_builder.Relax_cells(voronoi_config.Get_relax_iterations());
+  voronoi_builder.Export_PPM("/home/nanderson/nate_personal/projects/world_builder/output/3_relaxed_v_cells.ppm");
 
   //////////////////////////////////////////////////////
   // World Visualization

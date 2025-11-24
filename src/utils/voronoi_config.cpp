@@ -22,7 +22,8 @@ voronoi::Voronoi_config(std::ifstream params_path)
   m_height(),
   m_min_distance(),
   m_k_attempts(),
-  m_voronoi_scale_factor()
+  m_voronoi_scale_factor(),
+  m_relax_iterations()
 {
   nlohmann::json file_data = nlohmann::json::parse(params_path);
   m_width = file_data.value("map_width", m_width);
@@ -31,6 +32,7 @@ voronoi::Voronoi_config(std::ifstream params_path)
   m_k_attempts = file_data.value("point_attempts", m_k_attempts);
   m_voronoi_scale_factor = file_data.value("voronoi_scale_factor",
                                            m_voronoi_scale_factor);
+  m_relax_iterations = file_data.value("cell_relaxations", m_relax_iterations);
 }
 
 ///////////////////////////////////////////////////////////////////////

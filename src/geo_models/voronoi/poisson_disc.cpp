@@ -143,28 +143,20 @@ void pd::Save_points_as_ppm(const std::string& filename)
 
 bool pd::in_bounds(const world_builder::Point& p)
 {
-  return (p.y >= 0 && p.y < m_height);
-}
-
-///////////////////////////////////////////////////////////////////////
-
-world_builder::Point pd::wrap_around(const Point& p) const
-{
-  double x = std::fmod(p.x, m_width);
-  if (x < 0) x += m_width;
-  return Point{x, p.y};
+  return (p.x >= 0 && p.x < m_width && p.y >= 0 && p.y < m_height);
 }
 
 ///////////////////////////////////////////////////////////////////////
 
 void pd::place_in_grid(int index, const Point& point)
 {
-  // Wrap the point
-  Point wrapped_point = wrap_around(point);
-
   // Convert the continuous x, y position of the point into grid cell coordinates.
-  int grid_x = int(wrapped_point.x / m_cell_size);
-  int grid_y = int(wrapped_point.y / m_cell_size);
+  int grid_x = int(point.x / m_cell_size);
+  int grid_y = int(point.y / m_cell_size);
+
+  // Guard against out-of-range indices (defensive)
+  if (grid_x < 0 || grid_x >= m_grid_width) return;
+  if (grid_y < 0 || grid_y >= m_grid_height) return;
 
   // Convert the 2D coordinates into a 1D index for the flat vector m_map_grid
   m_map_grid[grid_y * m_grid_width + grid_x] = index;
@@ -174,14 +166,10 @@ void pd::place_in_grid(int index, const Point& point)
 
 bool pd::no_neighbors(const Point& point)
 {
-  // Wrap the point horizontally to handle cylindrical map behavior
-  // Ensures that points near the left edge correctly consider neighbors near the right edge
-  Point wrapped_point = wrap_around(point);
-
   // Convert the continuous (x, y) coordinates of the point into discrete grid cell coordinates
   // Each grid cell has side length m_cell_size, computed as radius / sqrt(2)
-  int grid_x = int(wrapped_point.x / m_cell_size);
-  int grid_y = int(wrapped_point.y / m_cell_size);
+  int grid_x = int(point.x / m_cell_size);
+  int grid_y = int(point.y / m_cell_size);
 
   // Loop over the 5x5 neighborhood of cells centered on the candidate cell
   // -2..2 is used because points can affect neighbors up to 2 cells away due to the cell size
@@ -190,17 +178,12 @@ bool pd::no_neighbors(const Point& point)
   {
     for (int x = -2; x <= 2; x++)
     {
-      // Wrap x horizontally so that left/right neighbors wrap around the map
-      int nx = (grid_x + x + m_grid_width) % m_grid_width;
-
-      // Vertical wrapping is not applied, so check bounds normally
+      int nx = grid_x + x;
       int ny = grid_y + y;
 
-      // Skip cells that are outside the vertical bounds
-      if (ny < 0 || ny >= m_grid_height)
-      {
-        continue;
-      }
+      // Skip cells that are outside the bounds
+      if (nx < 0 || nx >= m_grid_width) continue;
+      if (ny < 0 || ny >= m_grid_height) continue;
 
       // Get the index of any existing point in this grid cell
       int idx = m_map_grid[ny * m_grid_width + nx];
@@ -208,22 +191,8 @@ bool pd::no_neighbors(const Point& point)
       // If the cell contains a point
       if (idx != POINT_UNDEFINED)
       {
-        // Compute horizontal distance to candidate
-        double dx = m_grid_points[idx].x - wrapped_point.x;
-
-        // Wrap horizontal distance across map boundaries
-        // e.g., a point near the left edge may be very close to one on the right edge
-        if (dx > m_width / 2)
-        {
-          dx -= m_width;
-        }
-        if (dx < -m_width / 2)
-        {
-          dx += m_width;
-        }
-
-        // Vertical distance (no wrapping)
-        double dy = m_grid_points[idx].y - wrapped_point.y;
+        double dx = m_grid_points[idx].x - point.x;
+        double dy = m_grid_points[idx].y - point.y;
 
         // Check if distance is less than minimum allowed (radius)
         // Using squared distance avoids a square root for efficiency
@@ -246,7 +215,7 @@ world_builder::Point pd::random_around(const Point& point)
   double a = dice::Make_a_roll<double>(0, 2*M_PI);
   double r = dice::Make_a_roll<double>(m_radius, 2*m_radius);
   Point new_point{point.x + r * std::cos(a), point.y + r * std::sin(a)};
-  return wrap_around(new_point);
+  return new_point;
 }
 
 ///////////////////////////////////////////////////////////////////////

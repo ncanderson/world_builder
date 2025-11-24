@@ -7,6 +7,7 @@
 
 // Standard libs
 #include <vector>
+#include <string>
 
 // Application files
 

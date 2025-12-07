@@ -153,8 +153,9 @@ private:
   void place_in_grid(int index, const Point& point);
 
   /**
-   * @brief Whether this point has neighbors
-   * @param point
+   * @brief Whether this point has neighbors. New points are not valid if they
+   * are with m_radius of another point.
+   * @param point The point to check
    * @return True if no neighboring points were too close to `point`; candidate is valid.
    * Otherwise false.
    */

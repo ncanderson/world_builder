@@ -26,7 +26,7 @@ using namespace boost::polygon;
  */
 struct Cell
 {
-
+  // Attributes
   /**
    * @brief ID of the cell, used to preserve color for the output
    */
@@ -46,6 +46,17 @@ struct Cell
    * @brief The random color for visualization
    */
   std::array<unsigned char, 3> color;
+
+  // Implementation
+  /**
+   * Getters and setters
+   */
+  const double Get_x() const { return site.x; }
+  void Set_x(const double new_x) { site.x = new_x; }
+
+  const double Get_y() const { return site.y; }
+  void Set_y(const double new_y) { site.y = new_y; }
+
 };
 
 /**
@@ -107,21 +118,33 @@ private:
   double m_scale_factor;
 
   /**
+   * @brief Vector of original Poisson disc points
+   */
+  std::vector<Point> m_original_points;
+
+  /**
    * @brief The generated cells
    */
   std::vector<Cell> m_cells;
 
+  /**
+   * @brief Every point placed must be at least `m_radius` units away from all
+   * other points.
+   */
+  double m_poisson_point_radius;
+
   // Implementation
   /**
-   * @brief Create dummy points for every map point. These dummy points will be
+   * @brief Create dummy points for any Poisson disc points that are within range
+   * where they could affect the Voronoi cells. These dummy points will be
    * used to bridge the boundary on the east/west map edges, allowing those cells
    * to pretend they are adjacent. This allows for:
    * 1. Full voronoi polygon creation of edge cells
    * 2. Smooth transition across the map boundary for adjacent cells
-   * @param points The points to create ghosts for
-   * @return A vector of all ghost points
+   * @param points The full Points vector for managing duplicate points
+   * @return Expanded vector of
    */
-  std::vector<Point> world_wrap_ghost_points(const std::vector<Point>& points);
+  std::vector<Point> world_wrap_points(const std::vector<Point>& points);
 
 };
 }

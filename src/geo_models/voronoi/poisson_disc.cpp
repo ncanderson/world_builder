@@ -154,9 +154,15 @@ void pd::place_in_grid(int index, const Point& point)
   int grid_x = int(point.x / m_cell_size);
   int grid_y = int(point.y / m_cell_size);
 
-  // Guard against out-of-range indices (defensive)
-  if (grid_x < 0 || grid_x >= m_grid_width) return;
-  if (grid_y < 0 || grid_y >= m_grid_height) return;
+  // Guard against out-of-range indices
+  if (grid_x < 0 || grid_x >= m_grid_width)
+  {
+    return;
+  }
+  if (grid_y < 0 || grid_y >= m_grid_height)
+  {
+    return;
+  }
 
   // Convert the 2D coordinates into a 1D index for the flat vector m_map_grid
   m_map_grid[grid_y * m_grid_width + grid_x] = index;
@@ -182,8 +188,14 @@ bool pd::no_neighbors(const Point& point)
       int ny = grid_y + y;
 
       // Skip cells that are outside the bounds
-      if (nx < 0 || nx >= m_grid_width) continue;
-      if (ny < 0 || ny >= m_grid_height) continue;
+      if (nx < 0 || nx >= m_grid_width)
+      {
+        continue;
+      }
+      if (ny < 0 || ny >= m_grid_height)
+      {
+        continue;
+      }
 
       // Get the index of any existing point in this grid cell
       int idx = m_map_grid[ny * m_grid_width + nx];

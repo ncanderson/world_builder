@@ -5,8 +5,6 @@
 // Standard libs
 #include <fstream>
 
-// JSON
-
 // Application files
 #include <utils/world_builder_utils.h>
 #include <geo_models/voronoi/voronoi_builder.h>
@@ -18,8 +16,7 @@ using vb = world_builder::Voronoi_builder;
 ///////////////////////////////////////////////////////////////////////
 
 vb::Voronoi_builder(double width, double height, double scale_factor)
-    :
-    m_width(width),
+    : m_width(width),
     m_height(height),
     m_scale_factor(scale_factor),
     m_cells()
@@ -27,121 +24,176 @@ vb::Voronoi_builder(double width, double height, double scale_factor)
 
 ///////////////////////////////////////////////////////////////////////
 
-std::vector<world_builder::Cell> vb::Build_cells(const std::vector<Point>& points)
+std::vector<world_builder::Cell> vb::Build_cells(const std::vector<Point>& incoming)
 {
-  // Preserve IDs/colors if we are rebuilding after a relaxation pass and
-  // the incoming points vector has the same size/order as the current cells.
-  std::vector<int> preserved_ids;
-  std::vector<std::array<unsigned char, 3>> preserved_colors;
-  const bool preserve = (m_cells.size() == points.size() && !m_cells.empty());
-  if (preserve)
+  m_cells.clear();
+
+  //------------------------------------------------------------------
+  // 1. Detect if input is original-only or already ghost-expanded
+  //------------------------------------------------------------------
+  bool incoming_extended = false;
+  for (const auto& p : incoming)
   {
-    preserved_ids.reserve(m_cells.size());
-    preserved_colors.reserve(m_cells.size());
-    for (const auto& c : m_cells)
+    if (p.x < 0.0 || p.x >= m_width)
     {
-      preserved_ids.push_back(c.id);
-      preserved_colors.push_back(c.color);
+      incoming_extended = true;
+      break;
     }
   }
 
-  m_cells.clear();
+  //------------------------------------------------------------------
+  // 2. Rebuild ghosted point list
+  //------------------------------------------------------------------
+  std::vector<Point> pts;
+  std::vector<bool> is_real;
 
-  // Create extended points for horizontal toroidal wrapping (ghost points)
-  std::vector<Point> extended_points = world_wrap_ghost_points(points);
-
-  // Convert extended points to Boost polygon points
-  std::vector<point_data<double>> boost_points;
-  boost_points.reserve(extended_points.size());
-  for (const auto& p : extended_points)
+  if (!incoming_extended)
   {
-    boost_points.emplace_back(p.x * m_scale_factor, p.y * m_scale_factor);
+    // Save originals in canonical order
+    m_original_points = incoming;
+
+    // WRAP FIX:
+    // Use full left+right tiling. No bounding radius heuristics.
+    pts.reserve(incoming.size() * 3);
+    is_real.reserve(incoming.size() * 3);
+
+    for (const auto& p : incoming)
+    {
+      // 1. Original
+      pts.push_back(p);
+      is_real.push_back(true);
+
+      // 2. Ghost: left tile (p.x - width)
+      pts.push_back(Point{p.x - m_width, p.y});
+      is_real.push_back(false);
+
+      // 3. Ghost: right tile (p.x + m_width)
+      pts.push_back(Point{p.x + m_width, p.y});
+      is_real.push_back(false);
+    }
+  }
+  else
+  {
+    // Already extended: trust ordering (originals first)
+    pts = incoming;
+    is_real.reserve(pts.size());
+
+    for (const auto& p : pts)
+      is_real.push_back(p.x >= 0.0 && p.x < m_width);
+
+    // recover originals
+    m_original_points.clear();
+    for (size_t i = 0; i < pts.size(); i++)
+      if (is_real[i])
+        m_original_points.push_back(pts[i]);
   }
 
-  voronoi_diagram<double> voronoi_diagram;
-  construct_voronoi(boost_points.begin(),
-                    boost_points.end(),
-                    &voronoi_diagram);
+  const size_t N = m_original_points.size();
 
-  // Convert edges to cells, keeping only original points
-  int next_id = 0;
-  for (auto it = voronoi_diagram.cells().begin();
-       it != voronoi_diagram.cells().end();
-       ++it)
+  //------------------------------------------------------------------
+  // 3. Convert to scaled Boost points
+  //------------------------------------------------------------------
+  std::vector<point_data<double>> boost_pts;
+  boost_pts.reserve(pts.size());
+
+  for (const auto& p : pts)
+    boost_pts.emplace_back(p.x * m_scale_factor, p.y * m_scale_factor);
+
+  //------------------------------------------------------------------
+  // 4. Build diagram
+  //------------------------------------------------------------------
+  voronoi_diagram<double> vd;
+  construct_voronoi(boost_pts.begin(), boost_pts.end(), &vd);
+
+  //------------------------------------------------------------------
+  // 5. Prepare output slots
+  //------------------------------------------------------------------
+  std::vector<Cell> result(N);
+  std::vector<bool> filled(N, false);
+
+  //------------------------------------------------------------------
+  // 6. Convert Voronoi cells into polygons
+  //------------------------------------------------------------------
+  for (const auto& c : vd.cells())
   {
-    int idx = it->source_index();
+    int idx = c.source_index();
+    if (idx < 0 || idx >= (int)pts.size())
+      continue;
 
-    // Skip ghost points; only keep cells corresponding to original points
-    if (idx < 0 || idx >= points.size())
+    if (!is_real[idx])
+      continue;
+
+    // Determine original index
+    int real_index = 0;
+    for (int i = 0; i < idx; i++)
+      if (is_real[i])
+        real_index++;
+
+    int orig = real_index;
+    if (orig < 0 || orig >= (int)N)
+      continue;
+
+    Cell out;
+    out.site = pts[idx];
+    out.id   = orig;
+    out.color = dice::Create_random_color();
+
+    const auto* e = c.incident_edge();
+    if (!e)
     {
+      result[orig] = std::move(out);
+      filled[orig] = true;
       continue;
     }
 
-    Cell cell;
-    cell.site = points[idx];
+    const auto* start = e;
+    std::vector<Point> poly;
+    poly.reserve(16);
 
-    // Restore preserved id/color if available, otherwise assign new ones
-    if (preserve)
+    do
     {
-      cell.id = preserved_ids[idx];
-      cell.color = preserved_colors[idx];
+      if (e->is_primary() && e->vertex0())
+      {
+        double vx = e->vertex0()->x() / m_scale_factor;
+        double vy = e->vertex0()->y() / m_scale_factor;
+
+        // VERTEX FIX: wrap ONLY horizontally into the base domain
+        if (vx < 0)      vx += m_width;
+        if (vx >= m_width) vx -= m_width;
+
+        poly.push_back(Point{vx, vy});
+      }
+
+      e = e->next();
+    }
+    while (e != start);
+
+    out.vertices = std::move(poly);
+    result[orig] = std::move(out);
+    filled[orig] = true;
+  }
+
+  //------------------------------------------------------------------
+  // 7. Ensure stable ordering
+  //------------------------------------------------------------------
+  m_cells.clear();
+  m_cells.reserve(N);
+
+  for (size_t i = 0; i < N; i++)
+  {
+    if (filled[i])
+    {
+      m_cells.push_back(std::move(result[i]));
     }
     else
     {
-      cell.id = next_id++;
-      cell.color = dice::Create_random_color();
+      // placeholder
+      Cell c;
+      c.site = m_original_points[i];
+      c.id = i;
+      c.color = dice::Create_random_color();
+      m_cells.push_back(std::move(c));
     }
-
-    // Get the first incident edge of this Voronoi cell
-    const auto* edge = it->incident_edge();
-
-    // Skip cells that have no edges (this can happen for some degenerate points)
-    if (!edge)
-    {
-      continue;
-    }
-
-    // Save the starting edge so we know when we've looped all the way around
-    const auto* start = edge;
-    const auto* e = start;
-
-    // Loop over all edges around the cell
-    do
-    {
-      // Only consider primary half-edges (each edge appears twice in the diagram)
-      // and skip edges that are "infinite" (have no defined vertices)
-      if (e->is_primary() && e->vertex0() && e->vertex1())
-      {
-        // Extract the first endpoint of this edge and scale back to map coordinates
-        Point v0{
-            e->vertex0()->x() / m_scale_factor,
-            e->vertex0()->y() / m_scale_factor
-        };
-
-        // Extract the second endpoint of this edge and scale back to map coordinates
-        Point v1{
-            e->vertex1()->x() / m_scale_factor,
-            e->vertex1()->y() / m_scale_factor
-        };
-
-        // Optionally wrap vertices horizontally into map bounds
-        while (v0.x < 0) { v0.x += m_width; }
-        while (v0.x >= m_width) { v0.x -= m_width; }
-        while (v1.x < 0) { v1.x += m_width; }
-        while (v1.x >= m_width) { v1.x -= m_width; }
-
-        // Add both vertices to the current cell's vertex list
-        cell.vertices.push_back(v0);
-        cell.vertices.push_back(v1);
-      }
-
-      // Move to the next edge around this cell
-      e = e->next();
-
-      // Continue until we've returned to the starting edge, completing the loop
-    } while (e != start);
-
-    m_cells.push_back(cell);
   }
 
   return m_cells;
@@ -151,51 +203,59 @@ std::vector<world_builder::Cell> vb::Build_cells(const std::vector<Point>& point
 
 void vb::Relax_cells(int iterations)
 {
-  for (int iter = 0; iter < iterations; ++iter)
+  for (int step = 0; step < iterations; step++)
   {
-    std::vector<Point> new_sites;
-    new_sites.reserve(m_cells.size());
+    std::vector<Point> wrapped = world_wrap_points(m_original_points);
+    Build_cells(wrapped);
 
-    for (const auto& cell : m_cells)
+    std::vector<Point> new_orig;
+    new_orig.reserve(m_original_points.size());
+
+    for (size_t i = 0; i < m_original_points.size(); i++)
     {
-      if (cell.vertices.empty())
+      const Cell& c = m_cells[i];
+      if (c.vertices.empty())
       {
-        // Keep original site if no vertices
-        new_sites.push_back(cell.site);
+        new_orig.push_back(c.site);
         continue;
       }
 
-      // Simple Euclidean centroid (no wrapping)
-      double sum_x = 0.0;
-      double sum_y = 0.0;
-      int count = 0;
-
-      for (const auto& v : cell.vertices)
+      double sx = 0, sy = 0;
+      for (const auto& v : c.vertices)
       {
-        sum_x += v.x;
-        sum_y += v.y;
-        ++count;
+        double vx = v.x;
+
+        // centroid wrap relative to site
+        double dx = vx - c.site.x;
+        if (dx >  m_width * 0.5) vx -= m_width;
+        if (dx < -m_width * 0.5) vx += m_width;
+
+        sx += vx;
+        sy += v.y;
       }
 
-      Point centroid{ sum_x / count, sum_y / count };
+      Point cen{ sx / c.vertices.size(), sy / c.vertices.size() };
 
-      new_sites.push_back(centroid);
+      // wrap horizontally only
+      if (cen.x < 0)      cen.x += m_width;
+      if (cen.x >= m_width) cen.x -= m_width;
+
+      new_orig.push_back(cen);
     }
 
-    // Rebuild Voronoi with new centroid positions (Build_cells will preserve IDs/colors)
-    Build_cells(new_sites);
+    m_original_points = std::move(new_orig);
   }
+
+  Build_cells(world_wrap_points(m_original_points));
 }
 
 ///////////////////////////////////////////////////////////////////////
 
 void vb::Export_PPM(const std::string& filename)
 {
-  // Convert member attributes to integers for image dimensions
-  int img_width = static_cast<int>(m_width);
+  int img_width  = static_cast<int>(m_width);
   int img_height = static_cast<int>(m_height);
 
-  // Sanity check
   if (img_width <= 0 || img_height <= 0)
   {
     std::cerr << "PPM export: invalid image dimensions\n";
@@ -208,12 +268,13 @@ void vb::Export_PPM(const std::string& filename)
     return;
   }
 
-  // Create image buffer filled with black
-  std::vector<std::vector<std::array<unsigned char, 3>>> image(img_height,
-                                                               std::vector<std::array<unsigned char, 3>>(img_width,
-                                                                                                         {0, 0, 0}));
+  // Image buffer (black)
+  std::vector<std::vector<std::array<unsigned char, 3>>> image(
+      img_height,
+      std::vector<std::array<unsigned char, 3>>(img_width, {0,0,0})
+      );
 
-  // Fill pixels with nearest site color
+  // --- nearest-site fill ----------------------------------------------------
   for (int y = 0; y < img_height; ++y)
   {
     for (int x = 0; x < img_width; ++x)
@@ -221,12 +282,12 @@ void vb::Export_PPM(const std::string& filename)
       double min_dist = std::numeric_limits<double>::max();
       size_t nearest = 0;
 
-      // Find nearest site
       for (size_t i = 0; i < m_cells.size(); ++i)
       {
         double dx = m_cells[i].site.x - x;
         double dy = m_cells[i].site.y - y;
-        double d2 = (dx * dx) + (dy * dy);
+        double d2 = dx*dx + dy*dy;
+
         if (d2 < min_dist)
         {
           min_dist = d2;
@@ -238,7 +299,48 @@ void vb::Export_PPM(const std::string& filename)
     }
   }
 
-  // Write PPM file
+  // --- draw Poisson sites on top --------------------------------------------
+  auto draw_point = [&](int cx,
+                        int cy,
+                        int radius,
+                        unsigned char r,
+                        unsigned char g,
+                        unsigned char b)
+  {
+    int r2 = radius * radius;
+    for (int dy = -radius; dy <= radius; ++dy)
+    {
+      for (int dx = -radius; dx <= radius; ++dx)
+      {
+        if (dx*dx + dy*dy > r2) continue;
+
+        int px = cx + dx;
+        int py = cy + dy;
+
+        if (px >= 0 && px < img_width &&
+            py >= 0 && py < img_height)
+        {
+          image[py][px] = {r, g, b};
+        }
+      }
+    }
+  };
+
+  // Bright white point marker
+  const unsigned char PR = 255, PG = 255, PB = 255;
+  const int point_radius = 2;
+
+  for (const auto& cell : m_cells)
+  {
+    draw_point(
+        static_cast<int>(cell.site.x),
+        static_cast<int>(cell.site.y),
+        point_radius,
+        PR, PG, PB
+        );
+  }
+
+  // --- write PPM -------------------------------------------------------------
   std::ofstream ofs(filename, std::ios::out);
   if (!ofs)
   {
@@ -252,9 +354,7 @@ void vb::Export_PPM(const std::string& filename)
     for (int x = 0; x < img_width; ++x)
     {
       auto& c = image[y][x];
-      ofs << static_cast<int>(c[0]) << " "
-          << static_cast<int>(c[1]) << " "
-          << static_cast<int>(c[2]) << " ";
+      ofs << int(c[0]) << " " << int(c[1]) << " " << int(c[2]) << " ";
     }
     ofs << "\n";
   }
@@ -263,24 +363,26 @@ void vb::Export_PPM(const std::string& filename)
 
 ///////////////////////////////////////////////////////////////////////
 
-std::vector<world_builder::Point> vb::world_wrap_ghost_points(const std::vector<Point>& points)
+std::vector<world_builder::Point> vb::world_wrap_points(const std::vector<Point>& pts)
 {
-  std::vector<Point> extended;
-  extended.reserve(points.size() * 3);
+  // GHOST FIX:
+  // Always generate full L + C + R horizontal tiling.
+  std::vector<Point> out;
+  out.reserve(pts.size() * 3);
 
-  for (const auto& p : points)
+  for (const auto& p : pts)
   {
-    // Original point
-    extended.push_back(p);
+    // original
+    out.push_back(p);
 
-    // Ghost point shifted left
-    extended.push_back(Point{ p.x - m_width, p.y });
+    // left tile
+    out.push_back(Point{p.x - m_width, p.y});
 
-    // Ghost point shifted right
-    extended.push_back(Point{ p.x + m_width, p.y });
+    // right tile
+    out.push_back(Point{p.x + m_width, p.y});
   }
 
-  return extended;
+  return out;
 }
 
 ///////////////////////////////////////////////////////////////////////

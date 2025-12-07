@@ -1,8 +1,8 @@
 {
   "map_width": 500,
   "map_height": 300,
-  "point_min_distance": 20,
+  "point_min_distance": 10,
   "point_attempts": 30,
   "voronoi_scale_factor": 100,
-  "cell_relaxations": 2
+  "cell_relaxations": 5
 }
